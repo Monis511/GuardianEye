@@ -1,0 +1,61 @@
+Merged Project Proposal
+GuardianEye: Unified On-Device Multimodal Child Safety App
+Combining the on-device visual protection engine (GuardianEye / SafeScreen AI) with an on-device adaptation of the text-based bullying/harassment detection concept (Cyber Care)
+1. Why Merge These Two Ideas
+GuardianEye (and its SafeScreen AI pitch) protects children from one class of harm — explicit visual content — using a fast, fully on-device pipeline with no server upload. Cyber Care protects against a different class of harm — bullying, harassment, and unsafe social interactions — but does so through cloud-based text analysis of linked social media accounts.
+These two systems do not overlap in what they detect (visual vs. textual threats), so combining them does not duplicate effort — it produces a more complete child-safety product. The main architectural change needed is bringing Cyber Care's detection concept on-device, so the merged system keeps a single, consistent privacy story: nothing — neither images nor text — ever leaves the device.
+2. Module Breakdown: What to Keep, Simplify, or Cut
+Module	Source	What to keep / do	What to cut / simplify	Priority
+M1. Device Pairing & Device Owner Lock-down	GuardianEye SRS	Keep as-is: QR pairing, Device Owner provisioning, block uninstall without parent authorization, tamper alerts.	Nothing to cut — already scoped tightly.	Core
+M2. Real-Time Visual NSFW Detection & Blur	GuardianEye SRS + SafeScreen pitch deck	This is the flagship module. Use the on-device pipeline described in both docs: MediaProjection capture → TFLite/ExecuTorch NSFW classifier → blur overlay, target latency <1s (ideally single-digit ms if NPU delegation is achievable on the test device).	Gore detection, custom dataset collection — already excluded, keep excluded.	Core
+M3. On-Device Text Threat Detection (Bullying / Harassment)	Adapted from Cyber Care thesis	Take ONLY the bullying/harassment text-classification idea. Re-implement as a lightweight on-device model (e.g. quantized DistilBERT/MobileBERT via TFLite or ExecuTorch) that scans text extracted from the same screen captures already being taken for M2 (via OCR) or from a narrow, explicitly-permitted input channel — not full social-media account integration.	Cut: social-media API/account linking, friend-list analysis, personality-trait prediction, sentiment/mood dashboards. These are cloud-dependent, high-effort, and out of scope for an on-device FYP.	Core (this is the novelty module)
+M4. App Usage Monitoring & Limits	GuardianEye SRS	Keep as-is: UsageStatsManager-based tracking, per-app daily limits.	Nothing to cut.	Core
+M5. Screen-Time Scheduling	GuardianEye SRS	Keep if time permits.	Drop first if the team is behind schedule.	Optional
+M6. Location & Geofencing	GuardianEye SRS	Keep if time permits.	Drop first if the team is behind schedule.	Optional
+M7. New App Install Alerts	GuardianEye SRS	Simple notification-based module.	-	Optional
+Personality Trait & Friend Analysis	Cyber Care thesis	-	Cut entirely from MVP. Could be listed as Future Work only — it needs deep social-media API access and adds significant scope/legal complexity disproportionate to an FYP timeline.	Future Work
+3. Side-by-Side: Before and After Merging
+Dimension	GuardianEye / SafeScreen	Cyber Care	Merged Proposal
+Modality	Visual (screen/images)	Textual (posts/comments)	Visual + Textual (multimodal)
+Processing location	On-device (NPU/TFLite)	Cloud/server (social media APIs)	Fully on-device
+Threat type	Nudity / explicit content	Bullying, harassment, personality	Nudity + bullying/harassment
+Privacy posture	No upload, no INTERNET permission	Data leaves device via APIs	No upload for either modality
+Latency	~8ms (NPU) / <1s target	Not real-time (batch/API polling)	Real-time for both
+4. Where the Novelty Comes From
+●	Multimodal coverage: most existing parental-control tools handle either images (NSFW filters) or text (bullying detection) — rarely both in one on-device pipeline.
+●	Fully on-device for both modalities: Cyber Care's text analysis currently depends on cloud APIs; moving it on-device (matching GuardianEye's existing no-upload architecture) is the core technical contribution.
+●	Shared capture pipeline: the same screen-capture stream (MediaProjection) can feed both the image classifier (M2) and, after OCR, the text classifier (M3) — this reuse is an efficient systems-design angle worth highlighting in the report.
+●	Single consistent privacy claim across both threat types, which is stronger (and easier to defend to evaluators) than two separate, inconsistent architectures.
+5. Suggested Scope Cuts (to keep the FYP realistic)
+The full Cyber Care feature set (social-media account integration, friend-list personality analysis, sentiment/mood dashboards) is too large to fully re-architect on-device within an FYP timeline. Recommended MVP scope:
+●	Keep: on-device text classification for bullying/harassment on text extracted from the screen (via OCR) or from a narrow explicitly-granted input source.
+●	Cut from MVP, list as Future Work: social-media account linking, friend-list analyzer, personality-trait prediction, sentiment/mood visualization dashboards.
+●	This keeps the SRS's existing ethical/legal boundaries intact (Section 8 of the GuardianEye SRS already excludes message/SMS content scanning for privacy/legal reasons — scope M3 carefully around this: analyze only what is visibly rendered on-screen, not private message contents, to stay consistent with that boundary).
+6. Suggested Staged Roadmap
+Stage	Deliverable
+0	Environment setup: Android Studio, test devices, repo, model sourcing (NSFW model + lightweight text-classification model).
+1	Standalone validation of both models offline (NSFW classifier on sample images; text classifier on sample bullying datasets).
+2	Screen capture pipeline (MediaProjection) implemented — no ML yet.
+3	M2 wired in: NSFW classifier + blur overlay working end-to-end (MVP checkpoint 1).
+4	OCR/text-extraction pipeline added on top of the same capture stream.
+5	M3 wired in: on-device text classifier flags bullying/harassment text (MVP checkpoint 2 — novelty milestone).
+6	M1: Device pairing + Device Owner lock-down.
+7	M4: App usage monitoring & limits.
+8	Real-world testing, threshold tuning for both classifiers, false-positive/negative logging.
+9	Optional modules (M5–M7) as time permits.
+10	Hardening, performance/battery profiling, final documentation & defense prep.
+7. Suggested Report Structure Update
+In the SRS, this would mainly affect:
+●	Section 1.3 Scope — add the text-threat-detection module and restate the "no data leaves the device" claim as covering both modalities.
+●	Section 3 System Features — add a new Module (M3 above) alongside the existing three core modules.
+●	Section 5 Non-Functional Requirements — extend NFR-8/NFR-12 (no persistent storage/transmission) to explicitly cover extracted text, not just image frames.
+●	Section 7 Roadmap — merge with the staged plan above.
+●	Section 1.7 References — add the multimodal/cyberbullying papers below.
+8. Key References to Cite
+●	Samsung R&D — "On-Device Content Moderation" (arXiv:2107.11845) — on-device NSFW detection ensemble, close to M2.
+●	"Detection of Images with Adult Content for Parental Control on Mobile Devices" (ACM) — early parental-control literature review source.
+●	"A Machine Learning Ensemble Model for the Detection of Cyberbullying" (arXiv:2402.12538) — candidate approaches for M3.
+●	"Improving cyberbullying detection by fine-tuning a pre-trained sentence transformer" (Springer, 2024) — lightweight transformer approach, good fit for on-device deployment.
+●	"A Multimodal Approach for Detecting Unsafe Conversations within Instagram DMs" (ACM CSCW) — closest existing academic work to the merged image+text idea.
+●	"Multimodal hate speech detection: text and image fusion" (PMC) — fusion architecture reference (BiLSTM + EfficientNet).
+●	"Multimodal Cyberbullying Detection: Text, Image, and Audio Analysis" (2026) — recent precedent for multimodal child-safety framing.
